@@ -1,0 +1,14 @@
+{
+  "name": "Aprobado (default): cualquier accountId sin stub específico",
+  "priority": 10,
+  "request": {
+    "method": "POST",
+    "url": "/provider/v1/execute"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "body": "{\"transactionId\":\"txn-{{randomValue length=12 type='ALPHANUMERIC' lowercase=true}}\",\"status\":\"APPROVED\",\"balance\":5500.00,\"executedAt\":\"{{now}}\"}",
+    "transformers": ["response-template"]
+  }
+}

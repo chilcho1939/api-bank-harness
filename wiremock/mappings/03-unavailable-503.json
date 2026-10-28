@@ -1,0 +1,14 @@
+{
+  "name": "Proveedor no disponible: 503 sin cuerpo (accountId acc-provider-down)",
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "url": "/provider/v1/execute",
+    "bodyPatterns": [
+      { "matchesJsonPath": { "expression": "$.accountId", "equalTo": "acc-provider-down" } }
+    ]
+  },
+  "response": {
+    "status": 503
+  }
+}
