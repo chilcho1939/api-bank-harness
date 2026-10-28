@@ -66,9 +66,9 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> PENDING
     PENDING --> EXECUTED: proveedor aprueba
-    PENDING --> REJECTED: proveedor rechaza (4xx con cuerpo)
-    PENDING --> FAILED: no se pudo ejecutar (conexión, 5xx, circuito abierto)
-    PENDING --> UNKNOWN: timeout de lectura (resultado incierto)
+    PENDING --> REJECTED: proveedor rechaza (4xx/5xx con cuerpo code/message, RN06)
+    PENDING --> FAILED: no se pudo ejecutar (conexión, 500/502/503 sin cuerpo, circuito abierto)
+    PENDING --> UNKNOWN: resultado incierto (timeout de lectura, 504 sin cuerpo, respuesta inválida)
 ```
 
 `PENDING` que no avanza y `UNKNOWN` requieren conciliación con el proveedor (fuera de alcance; se documenta en el README).

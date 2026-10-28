@@ -68,13 +68,13 @@
         "Request al proveedor con el contrato literal de spec.md (POST /provider/v1/execute)",
         "200 APPROVED → resultado aprobado con transactionId y balance",
         "4xx con cuerpo → resultado rechazado con code y message del proveedor",
-        "5xx sin cuerpo → resultado de falla; timeout de lectura → resultado desconocido",
+        "500/502/503 sin cuerpo → resultado de falla; 504 sin cuerpo y timeout de lectura → resultado desconocido; 5xx con cuerpo code/message → rechazado (RN06)",
         "Conexión rechazada se reintenta (3 intentos) y termina en falla; timeout de lectura NO se reintenta",
         "Circuito abierto no llama al proveedor; los rechazos de negocio no abren el circuito",
         "Timeouts y base-url configurables con @ConfigurationProperties",
         "Tests con WireMock para cada rama"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": 4,
