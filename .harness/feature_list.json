@@ -158,7 +158,7 @@
         "README: cómo levantar, curl de cada escenario, API, estados, arquitectura, justificación de persistencia, escalabilidad, limitaciones y uso de IA",
         "ADRs en docs/adr/ para: capas e inversión de dependencias, MVC + virtual threads, PostgreSQL y modelo, estados y resultado incierto, resiliencia, idempotencia, contrato de errores"
       ],
-      "status": "pending"
+      "status": "done"
     }
   ]
 }

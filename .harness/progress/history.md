@@ -50,3 +50,12 @@
 - Determinismo: gate en WireMock + Awaitility, sin sleeps; timeout en IT propio (read-timeout 1s), flujo con 10s; orden esperado tomado de Postgres.
 - Infra de tests: un solo Postgres compartido (`JdbcConnectionDetails`, arranque perezoso), `DatabaseCleaner` común, helpers `ProviderGate`/`ProviderStubs`/`TransactionApi`. `src/main` sin cambios.
 - Review APPROVED → `/code-review` (9 hallazgos: 7 corregidos, 2 aceptados) → APPROVED vuelta 2.
+
+## 2026-10-28 — feature 7 delivery
+
+- Dockerfile multi-stage (build con `./mvnw`, capas de Spring Boot, runtime JRE 21, usuario no root `spring` uid 10001) y `.dockerignore`.
+- Compose completo: app + postgres + provider-mock con healthchecks; `/actuator/health` UP.
+- Stubs WireMock por `accountId`: aprobado (default), `acc-insufficient-funds` (422 literal), `acc-provider-down` (503 sin cuerpo), `acc-slow` (5 s > read-timeout 3 s → UNKNOWN).
+- README: API primero (levantar, curl por escenario verificado contra el stack real, estados, arquitectura, PostgreSQL, escalabilidad, limitaciones) y "Uso de IA" con el arnés y el origen de la configuración base. ADRs 0002–0008.
+- Review CHANGES_REQUESTED (3 frases del README: volúmenes, honestidad RT04, alcance de Sonar) → vuelta 2 → APPROVED 16/16.
+- Pendiente fuera de features: override de logback 1.6.6 decidido en `docs/sonar-decisiones.md` (no versionado) y no aplicado; el usuario decidió no configurarlo.
