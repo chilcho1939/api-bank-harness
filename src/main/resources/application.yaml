@@ -1,0 +1,15 @@
+spring:
+  application.name: transactions
+  threads.virtual.enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/transactions}
+    username: ${DB_USER:transactions}
+    password: ${DB_PASSWORD:transactions}
+    # Con virtual threads, el pool es la contrapresión real hacia la BD.
+    hikari.maximum-pool-size: ${DB_POOL_SIZE:20}
+  jpa:
+    open-in-view: false
+    # Flyway es dueño del esquema; Hibernate solo valida.
+    hibernate.ddl-auto: validate
+    properties.hibernate.jdbc.time_zone: UTC
+management.endpoints.web.exposure.include: health,info
