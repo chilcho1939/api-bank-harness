@@ -22,6 +22,8 @@ import mx.gilortiz.transactions.architecture.fixture.FieldInjectedBean;
 import mx.gilortiz.transactions.architecture.fixture.provider.http.HttpAdapterFixture;
 import mx.gilortiz.transactions.architecture.fixture.transaction.DomainDependingOnHttpFixture;
 import mx.gilortiz.transactions.architecture.fixture.transaction.MetaTransactionalProviderCallerFixture;
+import mx.gilortiz.transactions.architecture.fixture.transaction.ProviderCallerFixture;
+import mx.gilortiz.transactions.architecture.fixture.transaction.TransactionalIndirectCallerFixture;
 import mx.gilortiz.transactions.architecture.fixture.transaction.TransactionalProviderCallerFixture;
 import mx.gilortiz.transactions.transaction.TransactionProvider;
 import org.junit.jupiter.api.DisplayName;
@@ -46,11 +48,14 @@ class ArchitectureTest {
             "org.springframework.transaction.annotation.Transactional",
             "jakarta.transaction.Transactional");
 
-    private static final DescribedPredicate<JavaClass> DEPEND_ON_PROVIDER_PORT =
-            DescribedPredicate.describe("dependen del puerto TransactionProvider", javaClass ->
-                    !javaClass.isEquivalentTo(TransactionProvider.class)
-                            && javaClass.getDirectDependenciesFromSelf().stream()
-                            .anyMatch(dependency -> dependency.getTargetClass().isAssignableTo(TransactionProvider.class)));
+    // Transitivo: cubre al servicio que usa el puerto y a quien lo invoque (controller, facade...), porque un
+    // @Transactional en cualquier punto de la cadena también abarca la llamada al proveedor.
+    static final DescribedPredicate<JavaClass> DEPEND_ON_PROVIDER_PORT =
+            DescribedPredicate.describe("dependen directa o transitivamente del puerto TransactionProvider",
+                    javaClass -> !javaClass.isEquivalentTo(TransactionProvider.class)
+                            && javaClass.getTransitiveDependenciesFromSelf().stream()
+                            .anyMatch(dependency -> dependency.getTargetClass()
+                                    .isAssignableTo(TransactionProvider.class)));
 
     // C3: una transacción de BD alrededor de la llamada al proveedor retiene la conexión mientras se espera al tercero.
     static final ArchRule NO_TRANSACTIONAL_AROUND_PROVIDER = classes()
@@ -102,6 +107,29 @@ class ArchitectureTest {
         assertThat(result.getFailureReport().getDetails())
                 .anyMatch(detail -> detail.contains(MetaTransactionalProviderCallerFixture.class.getName()
                         + " está anotada con @Transactional"));
+    }
+
+    @Test
+    @DisplayName("la regla de @Transactional detecta un llamador indirecto del puerto")
+    void transactionalRuleDetectsIndirectCaller() {
+        JavaClasses fixtures = new ClassFileImporter()
+                .importClasses(TransactionalIndirectCallerFixture.class, ProviderCallerFixture.class);
+
+        EvaluationResult result = NO_TRANSACTIONAL_AROUND_PROVIDER.evaluate(fixtures);
+
+        assertThat(result.hasViolation()).isTrue();
+        assertThat(result.getFailureReport().getDetails())
+                .anyMatch(detail -> detail.contains(
+                        TransactionalIndirectCallerFixture.class.getName() + ".execute"))
+                .noneMatch(detail -> detail.contains(ProviderCallerFixture.class.getName() + "."));
+    }
+
+    @Test
+    @DisplayName("la regla de @Transactional alcanza al servicio de ejecución en el código de producción")
+    void transactionalRuleCoversExecutionService() {
+        JavaClass service = PRODUCTION_CLASSES.get("mx.gilortiz.transactions.transaction.TransactionService");
+
+        assertThat(DEPEND_ON_PROVIDER_PORT.test(service)).isTrue();
     }
 
     @Test
