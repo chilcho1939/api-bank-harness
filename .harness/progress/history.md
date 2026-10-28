@@ -34,3 +34,11 @@
 - Aceptado y documentado: FAILED consume la llave; duplicado en vuelo recibe la ganadora PENDING; ArchUnit transitivo a nivel clase.
 - Review CHANGES_REQUESTED → vuelta 2 (reviewer + `/code-review`) → APPROVED.
 - Para feature 5: `@Digits(integer=17, fraction=2)` en DTO (400), mapear PENDING en vuelo, conflicto (409) e `IllegalStateException` de 0 filas a ProblemDetail sin detalles internos. Feature 6: IT de concurrencia real y "sin tx durante la llamada".
+
+## 2026-10-28 — feature 5 api_endpoints
+
+- `POST /transactions`: 201 creada / 200 replay (incluye duplicado en vuelo PENDING, sin llamar al proveedor); response con los 10 campos literales de la spec, sin `code`/`message` del rechazo (decisión del leader: la spec no los expone; se persisten por RN06).
+- `ApiExceptionHandler` (RFC 9457) con `code` estable: 400 VALIDATION_ERROR/MALFORMED_REQUEST con lista de errores, 409 IDEMPOTENCY_KEY_CONFLICT, 422 regla, 500 INTERNAL_ERROR sin detalles; `@Digits(17,2)` → 400.
+- `GET /transactions`: filtros `accountId`/`status`/`type`, `page` base 0, `limit` 1–100 (default 20), orden `createdAt desc, id desc`, paginación en BD; forma `content/page/limit/totalElements/totalPages`.
+- OpenAPI con respuestas documentadas (springdoc) fijadas por `OpenApiIT`; GET `produces=application/json`.
+- Review CHANGES_REQUESTED (E7 OpenAPI) → vuelta 2 → APPROVED 26/26. Para f7: README con `count(*)` por página y paginación keyset como mejora.
