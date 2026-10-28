@@ -1,0 +1,62 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR/.harness/hooks/post-edit-compile.sh\"" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR/.harness/hooks/stop-unit-tests.sh\"" }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "additionalDirectories": ["../"],
+    "allow": [
+      "Read(../Backend Challenge (1).pdf)",
+      "Bash(./.harness/init.sh)",
+      "Bash(./mvnw *)",
+      "Bash(docker compose *)",
+      "Bash(curl -s localhost:*)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git rebase *)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)"
+    ],
+    "deny": [
+      "Read(../api-bank-challenge/**)",
+      "Edit(../api-bank-challenge/**)",
+      "Bash(*api-bank-challenge*)",
+
+      "Edit(.claude/settings.json)",
+      "Edit(.claude/agents/**)",
+      "Edit(.claude/skills/**)",
+      "Edit(.harness/init.sh)",
+      "Edit(.harness/hooks/**)",
+      "Edit(.harness/git-hooks/**)",
+      "Edit(.harness/docs/spec.md)",
+      "Edit(.harness/CHECKPOINTS.md)",
+
+      "Bash(* --no-verify*)",
+      "Bash(git config *)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean *)",
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "Bash(docker system prune*)",
+      "Bash(docker volume rm*)",
+      "Bash(docker compose down -v*)"
+    ]
+  }
+}

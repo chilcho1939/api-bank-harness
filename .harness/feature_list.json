@@ -1,0 +1,161 @@
+{
+  "project": "api-bank-harness",
+  "description": "Transaction Execution API — Java 21 + Spring Boot 4. Features derivadas de .harness/docs/spec.md, en capas verticales y en orden de dependencia.",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_tests_to_close": true,
+    "valid_status": [
+      "pending",
+      "in_progress",
+      "done",
+      "blocked",
+      "out_of_scope"
+    ]
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "bootstrap",
+      "title": "Proyecto base, infraestructura local y reglas de arquitectura",
+      "description": "Proyecto Spring Boot 4 / Java 21 con Maven Wrapper, Postgres + Flyway, WireMock en Docker Compose, Surefire/Failsafe separados y un test ArchUnit con las reglas de paquetes.",
+      "rules": [
+        "RT05"
+      ],
+      "acceptance": [
+        "./mvnw verify termina en BUILD SUCCESS",
+        "pom.xml contiene solo dependencias del stack de .claude/CLAUDE.md",
+        "Surefire corre *Test y Failsafe corre *IT",
+        "docker compose up levanta postgres (:5432) y WireMock (:8089)",
+        "Migración Flyway V1 crea la tabla transactions con UNIQUE en idempotency_key e índices para los filtros de RN07",
+        "application.yaml: virtual threads, open-in-view false, ddl-auto validate, variables con ${VAR:default}",
+        "Test ArchUnit: el paquete del dominio no depende de provider.http; sin campos @Autowired",
+        "Un *IT con Testcontainers verifica que el contexto arranca contra Postgres real"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 2,
+      "name": "business_rules",
+      "title": "Reglas de negocio",
+      "description": "Clase de reglas que valida monto mínimo, máximo DEBIT y moneda, con códigos de error estables. Sin dependencias web.",
+      "rules": [
+        "RN01",
+        "RN02",
+        "RN03"
+      ],
+      "acceptance": [
+        "1.00 se rechaza y 1.01 se acepta, para CREDIT y DEBIT",
+        "DEBIT 10000.00 se acepta y 10000.01 se rechaza; CREDIT 10000.01 se acepta",
+        "Moneda distinta de MXN se rechaza",
+        "Cada rechazo lleva un código estable en inglés y un mensaje descriptivo",
+        "Tests unitarios parametrizados con los valores frontera"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 3,
+      "name": "provider_client",
+      "title": "Puerto del proveedor, adaptador HTTP y resiliencia",
+      "description": "Interfaz del proveedor en el dominio con resultado sellado; adaptador RestClient con timeouts, retry y circuit breaker de Resilience4j.",
+      "rules": [
+        "RN05",
+        "RN06"
+      ],
+      "acceptance": [
+        "Request al proveedor con el contrato literal de spec.md (POST /provider/v1/execute)",
+        "200 APPROVED → resultado aprobado con transactionId y balance",
+        "4xx con cuerpo → resultado rechazado con code y message del proveedor",
+        "5xx sin cuerpo → resultado de falla; timeout de lectura → resultado desconocido",
+        "Conexión rechazada se reintenta (3 intentos) y termina en falla; timeout de lectura NO se reintenta",
+        "Circuito abierto no llama al proveedor; los rechazos de negocio no abren el circuito",
+        "Timeouts y base-url configurables con @ConfigurationProperties",
+        "Tests con WireMock para cada rama"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 4,
+      "name": "execution_service",
+      "title": "Entidad, servicio de ejecución e idempotencia",
+      "description": "Entidad Transaction con estados y transiciones únicas; servicio que valida, registra PENDING, llama al proveedor sin retener conexión y guarda el resultado; idempotencia por llave.",
+      "rules": [
+        "RN04",
+        "RN05",
+        "RN06"
+      ],
+      "acceptance": [
+        "Si las reglas fallan, el proveedor no recibe la llamada (verify del mock)",
+        "La transacción se guarda PENDING antes de llamar al proveedor",
+        "Cada resultado del proveedor se refleja en el estado (EXECUTED, REJECTED, FAILED, UNKNOWN) con sus datos",
+        "Sin @Transactional que envuelva la llamada al proveedor; regla ArchUnit: ninguna clase que dependa del puerto usa @Transactional",
+        "Misma Idempotency-Key y mismo payload → devuelve la transacción existente sin llamar al proveedor",
+        "Misma llave con payload distinto → excepción de conflicto",
+        "Violación del UNIQUE en carrera → devuelve la transacción ganadora",
+        "Tests unitarios del servicio con mock del puerto y de la entidad"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 5,
+      "name": "api_endpoints",
+      "title": "Endpoints REST, contrato de errores y OpenAPI",
+      "description": "POST y GET /transactions con DTOs record, Bean Validation, errores RFC 9457 y paginación con filtros. OpenAPI con springdoc.",
+      "rules": [
+        "RN01",
+        "RN02",
+        "RN03",
+        "RN07"
+      ],
+      "acceptance": [
+        "POST /transactions responde 201 con los campos literales del response de spec.md",
+        "Header opcional Idempotency-Key (máx. 100 caracteres)",
+        "Formato inválido → 400 ProblemDetail con lista de errores; regla de negocio → 422; conflicto de llave → 409; inesperado → 500 sin detalles internos",
+        "GET /transactions filtra por accountId, status y type; pagina con page y limit (limit máx. 100), orden estable",
+        "/v3/api-docs y /swagger-ui.html disponibles",
+        "Tests @WebMvcTest de cada código HTTP"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 6,
+      "name": "integration",
+      "title": "Pruebas de integración de punta a punta y concurrencia",
+      "description": "Flujo completo API → reglas → proveedor (WireMock) → Postgres (Testcontainers), sin mocks internos.",
+      "rules": [
+        "RN04",
+        "RN05",
+        "RN06",
+        "RN07",
+        "RT02"
+      ],
+      "acceptance": [
+        "*IT: aprobada persiste EXECUTED con saldo; rechazo persiste REJECTED con code",
+        "*IT: regla violada responde 422 y el proveedor no recibe ninguna llamada",
+        "*IT: timeout persiste UNKNOWN",
+        "*IT: replay con la misma llave devuelve la misma transacción",
+        "*IT: N requests concurrentes con la misma llave → una sola fila y una sola llamada al proveedor",
+        "*IT: consulta con filtros y paginación"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 7,
+      "name": "delivery",
+      "title": "Dockerfile, mock del proveedor, README y ADRs",
+      "description": "Imagen de la app, compose completo con stubs WireMock por accountId, README con instrucciones, decisiones y nota de IA, y ADRs de las decisiones clave.",
+      "rules": [
+        "RT01",
+        "RT03",
+        "RT04"
+      ],
+      "acceptance": [
+        "Dockerfile multi-stage con capas de Spring Boot y usuario no root",
+        "docker compose up --build levanta app, postgres y WireMock; /actuator/health en UP",
+        "Stubs WireMock por accountId: aprobado (default), rechazo por fondos, 503 sin cuerpo, respuesta lenta",
+        "README: cómo levantar, curl de cada escenario, API, estados, arquitectura, justificación de persistencia, escalabilidad, limitaciones y uso de IA",
+        "ADRs en docs/adr/ para: capas e inversión de dependencias, MVC + virtual threads, PostgreSQL y modelo, estados y resultado incierto, resiliencia, idempotencia, contrato de errores"
+      ],
+      "status": "pending"
+    }
+  ]
+}

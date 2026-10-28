@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# pre-commit — bloquea el commit si quedan reportes de subagentes sin archivar
+# en .harness/progress/ (deben moverse a .harness/progress/archive/<id>-<name>/).
+
+set -u
+PROGRESS_DIR="$(git rev-parse --show-toplevel)/.harness/progress"
+[ -d "$PROGRESS_DIR" ] || exit 0
+
+STRAY=$(find "$PROGRESS_DIR" -maxdepth 1 -type f \
+  \( -name 'impl_*.md' -o -name 'review_*.md' -o -name 'explore_*.md' \) -print)
+
+if [ -n "$STRAY" ]; then
+  echo "[pre-commit] Reportes sin archivar en .harness/progress/:"
+  echo "$STRAY" | sed 's/^/  - /'
+  echo "Muévelos a .harness/progress/archive/<id>-<name>/ (git mv) y vuelve a intentar."
+  exit 1
+fi
+exit 0
