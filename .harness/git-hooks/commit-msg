@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# commit-msg — exige Conventional Commits: <tipo>(<ámbito opcional>)!?: <descripción en español>
+# Tipos permitidos en .claude/CLAUDE.md (sección Commits).
+
+set -u
+SUBJECT=$(head -n1 "$1")
+
+# Merges y reverts generados por git pasan sin validar.
+case "$SUBJECT" in Merge\ *|Revert\ *) exit 0 ;; esac
+
+PATTERN='^(feat|fix|refactor|test|docs|chore|build|ci)(\([a-z0-9_-]+\))?!?: .{3,}$'
+if ! printf '%s' "$SUBJECT" | grep -Eq "$PATTERN"; then
+  echo "[commit-msg] Formato inválido: \"$SUBJECT\""
+  echo "Usa: <tipo>(<ámbito opcional>): <descripción en español>"
+  echo "Tipos: feat, fix, refactor, test, docs, chore, build, ci"
+  echo "Ejemplo: feat(transaction): agrega reglas de negocio RN01–RN03"
+  exit 1
+fi
+exit 0
