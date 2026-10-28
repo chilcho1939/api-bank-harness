@@ -133,6 +133,14 @@ class ArchitectureTest {
     }
 
     @Test
+    @DisplayName("la regla de @Transactional alcanza al controller, que llama al proveedor a través del servicio")
+    void transactionalRuleCoversController() {
+        JavaClass controller = PRODUCTION_CLASSES.get("mx.gilortiz.transactions.transaction.TransactionController");
+
+        assertThat(DEPEND_ON_PROVIDER_PORT.test(controller)).isTrue();
+    }
+
+    @Test
     @DisplayName("la regla de dominio detecta una clase de transaction que usa provider.http")
     void domainRuleDetectsViolation() {
         JavaClasses fixtures = new ClassFileImporter()

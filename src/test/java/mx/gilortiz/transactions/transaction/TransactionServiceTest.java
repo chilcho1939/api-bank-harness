@@ -26,11 +26,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 class TransactionServiceTest {
 
@@ -102,8 +109,10 @@ class TransactionServiceTest {
         when(provider.execute(any()))
                 .thenReturn(new ProviderResult.Approved("txn-789", new BigDecimal("5500.00"), Instant.now()));
 
-        Transaction result = service.execute(command(TransactionType.CREDIT, "1500.00", "MXN", null));
+        TransactionExecution execution = service.execute(command(TransactionType.CREDIT, "1500.00", "MXN", null));
+        Transaction result = execution.transaction();
 
+        assertThat(execution.created()).isTrue();
         assertThat(result.status()).isEqualTo(TransactionStatus.EXECUTED);
         assertThat(result.providerTransactionId()).isEqualTo("txn-789");
         assertThat(result.balanceAfter()).isEqualByComparingTo("5500.00");
@@ -132,7 +141,8 @@ class TransactionServiceTest {
         };
         when(provider.execute(any())).thenReturn(providerResult);
 
-        Transaction result = service.execute(command(TransactionType.DEBIT, "10000.00", "MXN", null));
+        TransactionExecution execution = service.execute(command(TransactionType.DEBIT, "10000.00", "MXN", null));
+        Transaction result = execution.transaction();
 
         assertThat(result.status()).isEqualTo(expected);
         assertThat(result.code()).isEqualTo(code);
@@ -159,8 +169,10 @@ class TransactionServiceTest {
         Transaction existing = executed(command(TransactionType.CREDIT, "1500.00", "MXN", KEY));
         when(repository.findByIdempotencyKey(KEY)).thenReturn(Optional.of(existing));
 
-        Transaction result = service.execute(command(TransactionType.CREDIT, "1500.0", "MXN", KEY));
+        TransactionExecution execution = service.execute(command(TransactionType.CREDIT, "1500.0", "MXN", KEY));
+        Transaction result = execution.transaction();
 
+        assertThat(execution.created()).isFalse();
         assertThat(result).isSameAs(existing);
         assertThat(result.status()).isEqualTo(TransactionStatus.EXECUTED);
         verifyNoInteractions(provider);
@@ -190,9 +202,12 @@ class TransactionServiceTest {
         doThrow(new DataIntegrityViolationException("uk_transactions_idempotency_key"))
                 .when(repository).saveAndFlush(any());
 
-        Transaction result = service.execute(command(TransactionType.CREDIT, "1500.00", "MXN", KEY));
+        TransactionExecution execution = service.execute(command(TransactionType.CREDIT, "1500.00", "MXN", KEY));
+        Transaction result = execution.transaction();
 
+        assertThat(execution.created()).isFalse();
         assertThat(result).isSameAs(winner);
+        assertThat(result.status()).isEqualTo(TransactionStatus.PENDING);
         verifyNoInteractions(provider);
         verifyNoCompletion();
     }
@@ -251,7 +266,8 @@ class TransactionServiceTest {
         when(provider.execute(any()))
                 .thenReturn(new ProviderResult.Approved("txn-789", new BigDecimal("5500.00"), Instant.now()));
 
-        Transaction result = service.execute(command(TransactionType.CREDIT, "1500", "MXN", null));
+        TransactionExecution execution = service.execute(command(TransactionType.CREDIT, "1500", "MXN", null));
+        Transaction result = execution.transaction();
 
         verify(provider).execute(argThat(request -> request.amount().compareTo(new BigDecimal("1500.00")) == 0
                 && request.amount().scale() == 2));
@@ -264,7 +280,8 @@ class TransactionServiceTest {
         when(provider.execute(any()))
                 .thenReturn(new ProviderResult.Approved("txn-789", new BigDecimal("5500.00"), Instant.now()));
 
-        Transaction result = service.execute(command(TransactionType.CREDIT, "1500.00", "MXN", "   "));
+        TransactionExecution execution = service.execute(command(TransactionType.CREDIT, "1500.00", "MXN", "   "));
+        Transaction result = execution.transaction();
 
         assertThat(result.idempotencyKey()).isNull();
         verify(repository, never()).findByIdempotencyKey(any());
@@ -284,7 +301,8 @@ class TransactionServiceTest {
         when(provider.execute(any()))
                 .thenReturn(new ProviderResult.Approved(transactionId, new BigDecimal(balance), Instant.now()));
 
-        Transaction result = service.execute(command(TransactionType.CREDIT, "1500.00", "MXN", null));
+        TransactionExecution execution = service.execute(command(TransactionType.CREDIT, "1500.00", "MXN", null));
+        Transaction result = execution.transaction();
 
         assertThat(result.status()).isEqualTo(TransactionStatus.UNKNOWN);
         assertThat(result.code()).isEqualTo("PROVIDER_INVALID_RESPONSE");
@@ -323,6 +341,25 @@ class TransactionServiceTest {
                 .hasMessageContaining("ya no está PENDING");
 
         assertThat(output).contains("ERROR").contains("status=REJECTED").contains("code=INSUFFICIENT_FUNDS");
+    }
+
+    @Test
+    @DisplayName("RN07: la consulta pasa los filtros al repositorio con página, límite y orden createdAt desc, id desc")
+    void searchUsesStableOrderAndRequestedPage() {
+        Page<Transaction> page = new PageImpl<>(List.of());
+        when(repository.findAll(ArgumentMatchers.<Specification<Transaction>>any(), any(Pageable.class)))
+                .thenReturn(page);
+
+        Page<Transaction> result = service.search(
+                new TransactionSearchCriteria("acc-123456", TransactionStatus.EXECUTED, TransactionType.DEBIT), 2, 25);
+
+        assertThat(result).isSameAs(page);
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(repository).findAll(ArgumentMatchers.<Specification<Transaction>>any(), pageable.capture());
+        assertThat(pageable.getValue().getPageNumber()).isEqualTo(2);
+        assertThat(pageable.getValue().getPageSize()).isEqualTo(25);
+        assertThat(pageable.getValue().getSort()).containsExactly(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
+        verifyNoInteractions(provider);
     }
 
     private void verifyNoCompletion() {
