@@ -48,9 +48,12 @@
         "DEBIT 10000.00 se acepta y 10000.01 se rechaza; CREDIT 10000.01 se acepta",
         "Moneda distinta de MXN se rechaza",
         "Cada rechazo lleva un código estable en inglés y un mensaje descriptivo",
-        "Tests unitarios parametrizados con los valores frontera"
+        "Tests unitarios parametrizados con los valores frontera",
+        "CI: .github/workflows/ci.yml en push y pull_request a main; Java 21 (temurin) con caché Maven; ejecuta ./mvnw verify",
+        "JaCoCo en pom.xml: report XML en target/site/jacoco/jacoco.xml tras verify (unitarios + IT), listo para sonar.coverage.jacoco.xmlReportPaths",
+        "ADR en docs/adr/ que justifica JaCoCo y CI"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": 3,

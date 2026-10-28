@@ -36,6 +36,7 @@
 - **Sin solución de referencia.** No se lee `../api-bank-challenge/` ni soluciones publicadas del reto. Configuración base permitida: `.harness/docs/reference-config.md`.
 - **Documenta mientras trabajas** en `current.md`, no al final.
 - **Deja el repo limpio** al cerrar (§5).
+- **Una feature = una rama `feat/<id>-<name>` = un PR.** Nadie mergea ni hace push a `main`; lo hace el usuario (ver `.claude/CLAUDE.md` § Flujo de PR).
 
 ## 4. Cómo elegir una feature
 
