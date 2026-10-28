@@ -80,6 +80,7 @@ docker compose up --build     # app :8080, postgres :5432, WireMock :8089
 Conventional Commits con descripción **en español**: `<tipo>(<ámbito opcional>): <qué se hizo>`.
 Tipos: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`. Ejemplo: `feat(transaction): agrega reglas de negocio RN01–RN03`.
 Nadie hace commit sin que el usuario lo pida. Sin trailer `Co-Authored-By` ni atribución de IA en commits o PRs.
+Autor obligatorio: `Gildardo Ortiz <chilcho1939@gmail.com>` (cuenta GitHub `chilcho1939`); nunca el correo global de trabajo. Si el repo no tiene `user.email` local, usa `git -c user.email=chilcho1939@gmail.com -c user.name="Gildardo Ortiz" commit ...`.
 
 ## Flujo de PR (una feature = una rama = un PR)
 

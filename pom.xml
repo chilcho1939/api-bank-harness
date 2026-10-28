@@ -23,6 +23,10 @@
         <wiremock.version>3.13.0</wiremock.version>
         <archunit.version>1.5.1</archunit.version>
         <jacoco.version>0.8.13</jacoco.version>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.organization>chilcho1939</sonar.organization>
+        <sonar.projectKey>chilcho1939_api-bank-harness</sonar.projectKey>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <dependencies>

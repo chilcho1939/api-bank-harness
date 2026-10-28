@@ -12,13 +12,15 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Historial completo: Sonar lo usa para atribuir issues nuevos (blame).
           fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -28,5 +30,9 @@ jobs:
       - name: Verify
         run: ./mvnw -B verify
 
-      # Sonar: agregar aquí el step de análisis, después de verify, con
-      # sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+      - name: Análisis en SonarCloud
+        # Condicional: en PRs desde forks no hay secretos y el step fallaría.
+        if: env.SONAR_TOKEN != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
