@@ -8,19 +8,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @SpringBootTest
-@Testcontainers
+@Import(PostgresTestConfiguration.class)
 class ApplicationContextIT {
-
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
 
     private final Flyway flyway;
     private final JdbcTemplate jdbcTemplate;
@@ -35,7 +28,9 @@ class ApplicationContextIT {
     @DisplayName("el contexto arranca contra Postgres real con la migración V1 aplicada")
     void contextStartsWithV1Applied() {
         assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("1");
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM transactions", Integer.class)).isZero();
+        // La BD es compartida con los demás *IT: se afirma que la tabla existe, no que esté vacía.
+        assertThat(jdbcTemplate.queryForObject("SELECT to_regclass('transactions')::text", String.class))
+                .isEqualTo("transactions");
     }
 
     @Test
