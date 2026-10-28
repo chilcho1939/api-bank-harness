@@ -1,0 +1,15 @@
+target/
+.git/
+.github/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+.claude/
+.harness/
+docs/
+wiremock/
+docker-compose.yml
+Dockerfile
+.dockerignore
+README.md
