@@ -4,38 +4,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import mx.gilortiz.transactions.DatabaseCleaner;
+import mx.gilortiz.transactions.PostgresTestConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Mapeo de la entidad contra el esquema real de Flyway (Hibernate en {@code validate}) y UNIQUE de la llave.
  */
 @SpringBootTest
-@Testcontainers
+@Import(PostgresTestConfiguration.class)
 class TransactionPersistenceIT {
 
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
-
     private final TransactionRepository repository;
+    private final DatabaseCleaner databaseCleaner;
 
     @Autowired
-    TransactionPersistenceIT(TransactionRepository repository) {
+    TransactionPersistenceIT(TransactionRepository repository, DatabaseCleaner databaseCleaner) {
         this.repository = repository;
+        this.databaseCleaner = databaseCleaner;
     }
 
     @BeforeEach
     void cleanTable() {
-        repository.deleteAll();
+        databaseCleaner.clean();
     }
 
     @Test

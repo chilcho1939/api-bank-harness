@@ -5,47 +5,47 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import mx.gilortiz.transactions.DatabaseCleaner;
+import mx.gilortiz.transactions.PostgresTestConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * RN07 contra Postgres real: filtros, paginación y orden estable {@code createdAt desc, id desc}.
  */
 @SpringBootTest
-@Testcontainers
+@Import(PostgresTestConfiguration.class)
 class TransactionSearchIT {
-
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
 
     private static final Instant BASE = Instant.parse("2025-03-15T10:00:00Z");
     private static final TransactionSearchCriteria NO_FILTERS = new TransactionSearchCriteria(null, null, null);
 
     private final TransactionService service;
     private final TransactionRepository repository;
+    private final DatabaseCleaner databaseCleaner;
+    private final JdbcTemplate jdbcTemplate;
 
     @Autowired
-    TransactionSearchIT(TransactionService service, TransactionRepository repository) {
+    TransactionSearchIT(TransactionService service, TransactionRepository repository,
+                        DatabaseCleaner databaseCleaner, JdbcTemplate jdbcTemplate) {
         this.service = service;
         this.repository = repository;
+        this.databaseCleaner = databaseCleaner;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @BeforeEach
     void cleanTable() {
-        repository.deleteAll();
+        databaseCleaner.clean();
     }
 
     @Test
@@ -111,15 +111,14 @@ class TransactionSearchIT {
     @Test
     @DisplayName("RN07: las páginas recorren todas las filas sin repetir ni perder, aun con createdAt empatado")
     void pagesAreStableWithTiedCreatedAt() {
-        List<Transaction> inserted = new ArrayList<>();
         for (int i = 0; i < 7; i++) {
             // Tres filas por instante: el id decide el orden entre empatadas.
-            inserted.add(insert("acc-1", TransactionType.CREDIT, TransactionStatus.EXECUTED, i / 3));
+            insert("acc-1", TransactionType.CREDIT, TransactionStatus.EXECUTED, i / 3);
         }
-        List<UUID> expectedOrder = inserted.stream()
-                .sorted(Comparator.comparing(Transaction::createdAt).thenComparing(Transaction::id).reversed())
-                .map(Transaction::id)
-                .toList();
+        // Oráculo independiente del código bajo prueba: el orden lo da Postgres (uuid se compara sin signo).
+        List<UUID> expectedOrder = jdbcTemplate.queryForList(
+                "SELECT id FROM transactions ORDER BY created_at DESC, id DESC", UUID.class);
+        assertThat(expectedOrder).hasSize(7);
 
         List<UUID> visited = new ArrayList<>();
         Page<Transaction> page;
