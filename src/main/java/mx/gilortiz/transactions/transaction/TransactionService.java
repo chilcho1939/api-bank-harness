@@ -4,11 +4,14 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 /**
- * Caso de uso de {@code POST /transactions}:
- * reglas → idempotencia → {@code PENDING} → proveedor → estado final.
+ * Casos de uso de {@code /transactions}. Ejecución ({@code POST}):
+ * reglas → idempotencia → {@code PENDING} → proveedor → estado final. Consulta ({@code GET}): filtros RN07 paginados.
  * <p>
  * Sin {@code @Transactional} a propósito: el INSERT y el UPDATE corren cada uno en la transacción corta del
  * repositorio, y la llamada al proveedor ocurre entre ambos sin retener una conexión de BD.
@@ -20,6 +23,9 @@ import org.springframework.stereotype.Service;
 class TransactionService {
 
     static final String PROVIDER_INVALID_RESPONSE = "PROVIDER_INVALID_RESPONSE";
+
+    // createdAt no es único: el id desempata para que ninguna fila se repita ni se pierda entre páginas.
+    static final Sort STABLE_ORDER = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
 
     private static final Logger log = LoggerFactory.getLogger(TransactionService.class);
 
@@ -37,7 +43,7 @@ class TransactionService {
      * @throws BusinessRuleException           si falla RN01–RN03; el proveedor no recibe la llamada (RN04)
      * @throws IdempotencyKeyConflictException si la llave ya existe con un payload distinto
      */
-    Transaction execute(ExecuteTransactionCommand command) {
+    TransactionExecution execute(ExecuteTransactionCommand command) {
         rules.validate(command.type(), command.amount(), command.currency());
 
         Optional<Transaction> existing = findByIdempotencyKey(command);
@@ -55,7 +61,14 @@ class TransactionService {
         ProviderResult result = provider.execute(transaction.toProviderRequest());
         applyResult(transaction, result);
         recordOutcome(transaction);
-        return transaction;
+        return new TransactionExecution(transaction, true);
+    }
+
+    /**
+     * RN07: página {@code page} (base 0) de tamaño {@code limit}, de la más reciente a la más antigua.
+     */
+    Page<Transaction> search(TransactionSearchCriteria criteria, int page, int limit) {
+        return repository.findAll(criteria.toSpecification(), PageRequest.of(page, limit, STABLE_ORDER));
     }
 
     private Optional<Transaction> findByIdempotencyKey(ExecuteTransactionCommand command) {
@@ -66,17 +79,18 @@ class TransactionService {
     }
 
     // Otra solicitud con la misma llave insertó primero: el UNIQUE de la BD decide y se devuelve la ganadora.
-    private Transaction replayWinnerOfRace(ExecuteTransactionCommand command, DataIntegrityViolationException e) {
+    private TransactionExecution replayWinnerOfRace(ExecuteTransactionCommand command,
+                                                    DataIntegrityViolationException e) {
         Transaction winner = findByIdempotencyKey(command).orElseThrow(() -> e);
         log.info("Carrera de Idempotency-Key resuelta a favor de la transacción {}", winner.id());
         return replay(winner, command);
     }
 
-    private static Transaction replay(Transaction existing, ExecuteTransactionCommand command) {
+    private static TransactionExecution replay(Transaction existing, ExecuteTransactionCommand command) {
         if (!existing.hasSamePayloadAs(command)) {
             throw new IdempotencyKeyConflictException();
         }
-        return existing;
+        return new TransactionExecution(existing, false);
     }
 
     private void recordOutcome(Transaction transaction) {
