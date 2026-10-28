@@ -239,3 +239,21 @@ test(architecture): prohíbe @Transactional en llamadores indirectos del puerto 
 ```
 
 Los cambios de la vuelta 2 entran en el segundo commit. Si se prefiere un commit aparte: `fix(transaction): normaliza la escala del monto y protege el guardado del resultado del proveedor`.
+
+---
+
+# Vuelta 3: Sonar
+
+El quality gate de SonarCloud en el PR #4 fallaba con `new_reliability_rating = C`. Corregí los dos issues sin desactivar reglas ni excluir código.
+
+| Issue | Cambio | Evidencia |
+|---|---|---|
+| BLOCKER code smell: el método `code` choca con el campo `CODE` (`IdempotencyKeyConflictException.java:14`) | Renombré la constante a `ERROR_CODE`. El método `code()` se mantiene, coherente con `BusinessRuleException.code()`. Nada más usaba la constante. | `IdempotencyKeyConflictException.java:8`, `:15` |
+| MAJOR bug: `BigDecimal.equals()` compara también la escala (`TransactionServiceTest.java:256`) | Ahora compara con `compareTo(...) == 0` y verifica la escala por separado con `scale() == 2`. Esa prueba existe justamente para afirmar la normalización a escala 2, así que esa verificación se conserva de forma explícita. | `TransactionServiceTest.java:256-257` |
+| Mismo patrón (`isEqualTo(new BigDecimal(...))`) | Cambié a `isEqualByComparingTo("1500.00").hasScaleOf(2)`. | `TransactionServiceTest.java:258`, `ExecuteTransactionCommandTest.java:20` |
+
+Verificación:
+- `./.harness/init.sh` → `EXIT=0`, con `[OK] verify verde (unitarios + integración + ArchUnit)` y `[OK] Entorno listo.`
+- Surefire: 153 tests. Failsafe: 10 tests. 0 fallos, 0 errores, 0 omitidos.
+
+Commit sugerido: `fix(transaction): corrige hallazgos de Sonar en conflicto de idempotencia y aserciones de BigDecimal`.

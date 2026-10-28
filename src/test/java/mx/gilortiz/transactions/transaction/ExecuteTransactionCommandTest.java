@@ -17,7 +17,7 @@ class ExecuteTransactionCommandTest {
     void amountIsNormalizedToScaleTwo(String amount) {
         ExecuteTransactionCommand command = command(amount, "key-1");
 
-        assertThat(command.amount()).isEqualTo(new BigDecimal("1500.00"));
+        assertThat(command.amount()).isEqualByComparingTo("1500.00").hasScaleOf(2);
     }
 
     @ParameterizedTest(name = "{0}")

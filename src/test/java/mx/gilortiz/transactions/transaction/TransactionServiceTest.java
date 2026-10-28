@@ -253,8 +253,9 @@ class TransactionServiceTest {
 
         Transaction result = service.execute(command(TransactionType.CREDIT, "1500", "MXN", null));
 
-        verify(provider).execute(argThat(request -> request.amount().equals(new BigDecimal("1500.00"))));
-        assertThat(result.amount()).isEqualTo(new BigDecimal("1500.00"));
+        verify(provider).execute(argThat(request -> request.amount().compareTo(new BigDecimal("1500.00")) == 0
+                && request.amount().scale() == 2));
+        assertThat(result.amount()).isEqualByComparingTo("1500.00").hasScaleOf(2);
     }
 
     @Test
