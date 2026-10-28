@@ -2,7 +2,9 @@ package mx.gilortiz.transactions.transaction;
 
 import java.math.BigDecimal;
 import java.util.Objects;
+import org.springframework.stereotype.Component;
 
+@Component
 final class TransactionRules {
 
     private static final BigDecimal MINIMUM_AMOUNT_EXCLUSIVE = new BigDecimal("1.00");
