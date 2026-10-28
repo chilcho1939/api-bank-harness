@@ -25,3 +25,12 @@
 - `ProviderProperties` validado (`readTimeout > connectTimeout`, rangos de retry/CB). ArchUnit: sin `@Transactional` (incl. meta-anotaciones) en clases que dependen del puerto.
 - Review APPROVED vuelta 1; `/code-review` → 10 hallazgos triados y corregidos; review APPROVED vuelta 2.
 - Pendiente feature 4: `@Transactional` en llamadores indirectos (controller/facade). Feature 7: `PROVIDER_BASE_URL=http://provider-mock:8080` en compose.
+
+## 2026-10-28 — feature 4 execution_service
+
+- Entidad `Transaction` (estados PENDING → EXECUTED/REJECTED/FAILED/UNKNOWN, transición única) y `TransactionService`: reglas → INSERT PENDING (tx corta) → proveedor sin tx → UPDATE dirigido `WHERE status='PENDING'` (tx corta).
+- Idempotencia: misma llave + mismo payload → existente sin llamar al proveedor; payload distinto → `IdempotencyKeyConflictException`; carrera del UNIQUE → relee ganadora. Llave en blanco = sin llave.
+- Monto con >2 decimales rechazado en `ExecuteTransactionCommand`; campos del proveedor acotados a columnas; si falla el UPDATE final se loguea el resultado del proveedor para conciliación.
+- Aceptado y documentado: FAILED consume la llave; duplicado en vuelo recibe la ganadora PENDING; ArchUnit transitivo a nivel clase.
+- Review CHANGES_REQUESTED → vuelta 2 (reviewer + `/code-review`) → APPROVED.
+- Para feature 5: `@Digits(integer=17, fraction=2)` en DTO (400), mapear PENDING en vuelo, conflicto (409) e `IllegalStateException` de 0 filas a ProblemDetail sin detalles internos. Feature 6: IT de concurrencia real y "sin tx durante la llamada".
