@@ -12,6 +12,8 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,5 +30,9 @@ jobs:
       - name: Verify
         run: ./mvnw -B verify
 
-      # Sonar: agregar aquí el step de análisis, después de verify, con
-      # sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+      - name: Análisis en SonarCloud
+        # Condicional: en PRs desde forks no hay secretos y el step fallaría.
+        if: env.SONAR_TOKEN != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
