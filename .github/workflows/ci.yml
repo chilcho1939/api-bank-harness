@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Historial completo: Sonar lo usa para atribuir issues nuevos (blame).
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Unitarios + integración (Testcontainers usa el Docker del runner) + ArchUnit + JaCoCo.
+      - name: Verify
+        run: ./mvnw -B verify
+
+      # Sonar: agregar aquí el step de análisis, después de verify, con
+      # sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml

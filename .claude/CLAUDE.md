@@ -81,6 +81,15 @@ Conventional Commits con descripción **en español**: `<tipo>(<ámbito opcional
 Tipos: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `build`, `ci`. Ejemplo: `feat(transaction): agrega reglas de negocio RN01–RN03`.
 Nadie hace commit sin que el usuario lo pida. Sin trailer `Co-Authored-By` ni atribución de IA en commits o PRs.
 
+## Flujo de PR (una feature = una rama = un PR)
+
+1. Rama `feat/<id>-<name>` desde `main` (o desde la rama de la feature anterior si su PR sigue abierto).
+2. implementer → reviewer APPROVED → cierre del arnés (history, archive, `init.sh` verde).
+3. Leader hace push de la rama y abre el PR con `gh pr create`: descripción en español con criterios de aceptación, enlaces a `archive/<id>-<name>/` y commit propuesto.
+4. CI (`.github/workflows/ci.yml`) corre `./mvnw verify` + JaCoCo; Sonar lo configura el usuario en ese workflow.
+5. `/code-review` solo en features críticas: 3 (resiliencia), 4 (idempotencia/transacciones), 6 (concurrencia).
+6. **El usuario revisa y mergea.** Ningún agente mergea ni hace push a `main`.
+
 ## Documentación
 
 - [`.harness/docs/spec.md`](../.harness/docs/spec.md) — contrato funcional (fuente: el PDF del reto)
