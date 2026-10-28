@@ -8,6 +8,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.http.Fault;
@@ -35,7 +36,10 @@ import org.springframework.web.client.RestClient;
 class HttpTransactionProviderTest {
 
     private static final String EXECUTE_PATH = "/provider/v1/execute";
-    private static final Duration READ_TIMEOUT = Duration.ofMillis(300);
+    // Holgados para runners de CI lentos: el read-timeout del cliente JDK cubre todo el intercambio.
+    private static final Duration CONNECT_TIMEOUT = Duration.ofMillis(500);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(1);
+    private static final int SLOW_RESPONSE_DELAY_MILLIS = (int) READ_TIMEOUT.multipliedBy(2).toMillis();
     private static final Duration RETRY_WAIT = Duration.ofMillis(10);
 
     private static final ProviderRequest CREDIT_REQUEST = new ProviderRequest(
@@ -196,14 +200,16 @@ class HttpTransactionProviderTest {
         @Test
         @DisplayName("un timeout de lectura se traduce a desconocido y NO se reintenta")
         void readTimeoutIsUnknownWithoutRetry() {
-            stubProvider(json(200, APPROVED_BODY).withFixedDelay((int) READ_TIMEOUT.multipliedBy(4).toMillis()));
+            stubProvider(json(200, APPROVED_BODY).withFixedDelay(SLOW_RESPONSE_DELAY_MILLIS));
             provider = providerWithDefaults();
 
             ProviderResult result = provider.execute(CREDIT_REQUEST);
 
             assertThat(result).isInstanceOfSatisfying(ProviderResult.Unknown.class, unknown ->
                     assertThat(unknown.code()).isEqualTo(HttpTransactionProvider.PROVIDER_TIMEOUT));
-            PROVIDER.verify(1, postRequestedFor(urlEqualTo(EXECUTE_PATH)));
+            // Cada intento pasa por el circuito: una sola llamada registrada = sin reintento (determinista).
+            assertThat(provider.circuitBreaker().getMetrics().getNumberOfBufferedCalls()).isEqualTo(1);
+            awaitProviderRequests(1);
         }
 
         @Test
@@ -236,7 +242,7 @@ class HttpTransactionProviderTest {
         @DisplayName("la espera entre reintentos crece exponencialmente según backoff-multiplier")
         void retryWaitGrowsExponentially() {
             provider = HttpTransactionProvider.create(RestClient.builder(), new ProviderProperties(baseUrl(),
-                    Duration.ofMillis(200), READ_TIMEOUT,
+                    CONNECT_TIMEOUT, READ_TIMEOUT,
                     new ProviderProperties.Retry(3, Duration.ofMillis(100), 2, 0),
                     circuitBreakerThatStaysClosed()));
 
@@ -250,7 +256,7 @@ class HttpTransactionProviderTest {
         @DisplayName("el jitter mantiene cada espera dentro de ±randomization-factor del valor exponencial")
         void retryWaitHasJitterWithinBounds() {
             provider = HttpTransactionProvider.create(RestClient.builder(), new ProviderProperties(baseUrl(),
-                    Duration.ofMillis(200), READ_TIMEOUT,
+                    CONNECT_TIMEOUT, READ_TIMEOUT,
                     new ProviderProperties.Retry(3, Duration.ofMillis(100), 2, 0.5),
                     circuitBreakerThatStaysClosed()));
 
@@ -317,7 +323,7 @@ class HttpTransactionProviderTest {
         @Test
         @DisplayName("los timeouts de lectura cuentan como falla técnica y abren el circuito")
         void readTimeoutsOpenCircuit() {
-            stubProvider(json(200, APPROVED_BODY).withFixedDelay((int) READ_TIMEOUT.multipliedBy(4).toMillis()));
+            stubProvider(json(200, APPROVED_BODY).withFixedDelay(SLOW_RESPONSE_DELAY_MILLIS));
             provider = providerWith(OPENS_AFTER_TWO_FAILURES);
 
             provider.execute(CREDIT_REQUEST);
@@ -349,7 +355,7 @@ class HttpTransactionProviderTest {
     }
 
     private static ProviderProperties properties(URI baseUrl, ProviderProperties.CircuitBreaker circuitBreaker) {
-        return new ProviderProperties(baseUrl, Duration.ofMillis(200), READ_TIMEOUT,
+        return new ProviderProperties(baseUrl, CONNECT_TIMEOUT, READ_TIMEOUT,
                 new ProviderProperties.Retry(3, RETRY_WAIT, 2, 0.5), circuitBreaker);
     }
 
@@ -359,6 +365,15 @@ class HttpTransactionProviderTest {
 
     private static URI baseUrl() {
         return URI.create(PROVIDER.baseUrl());
+    }
+
+    /**
+     * WireMock puede registrar la petición después de cumplir el {@code withFixedDelay}, cuando el cliente ya
+     * abandonó por timeout: se espera de forma acotada a que aparezca en el journal.
+     */
+    private static void awaitProviderRequests(int expected) {
+        await().atMost(Duration.ofSeconds(10))
+                .untilAsserted(() -> PROVIDER.verify(expected, postRequestedFor(urlEqualTo(EXECUTE_PATH))));
     }
 
     private static void stubProvider(ResponseDefinitionBuilder response) {

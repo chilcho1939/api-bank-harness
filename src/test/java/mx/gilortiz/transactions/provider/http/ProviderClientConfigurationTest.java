@@ -7,6 +7,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import java.math.BigDecimal;
@@ -62,19 +63,26 @@ class ProviderClientConfigurationTest {
     @DisplayName("base-url y read-timeout configurados se aplican al cliente: un proveedor lento da resultado desconocido")
     void appliesConfiguredBaseUrlAndReadTimeout() {
         PROVIDER.stubFor(post(urlEqualTo("/provider/v1/execute"))
-                .willReturn(aResponse().withStatus(200).withFixedDelay(1_000)));
+                .willReturn(aResponse().withStatus(200).withFixedDelay(2_000)));
 
+        // read-timeout (1s) muy por debajo del default (3s) y del delay (2s); holgado para runners de CI lentos.
         contextRunner
                 .withPropertyValues(
                         "provider.base-url=" + PROVIDER.baseUrl(),
-                        "provider.connect-timeout=100ms",
-                        "provider.read-timeout=200ms")
+                        "provider.connect-timeout=500ms",
+                        "provider.read-timeout=1s")
                 .run(context -> {
-                    ProviderResult result = context.getBean(TransactionProvider.class).execute(DEBIT_REQUEST);
+                    HttpTransactionProvider provider = context.getBean(HttpTransactionProvider.class);
+
+                    ProviderResult result = provider.execute(DEBIT_REQUEST);
 
                     assertThat(result).isInstanceOfSatisfying(ProviderResult.Unknown.class, unknown ->
                             assertThat(unknown.code()).isEqualTo(HttpTransactionProvider.PROVIDER_TIMEOUT));
-                    assertThat(PROVIDER.getAllServeEvents()).hasSize(1);
+                    // Cada intento pasa por el circuito: una sola llamada registrada = sin reintento (determinista).
+                    assertThat(provider.circuitBreaker().getMetrics().getNumberOfBufferedCalls()).isEqualTo(1);
+                    // WireMock puede registrar la petición recién al cumplir el delay: espera acotada, no un assert inmediato.
+                    await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                            PROVIDER.verify(1, postRequestedFor(urlEqualTo("/provider/v1/execute"))));
                 });
     }
 

@@ -260,3 +260,36 @@ Nota: la salida de `init.sh` muestra una línea `ERROR … Error no previsto al 
 ```
 fix(provider): clasifica 5xx con cuerpo como rechazo, 504 como incierto y valida la configuración
 ```
+
+---
+
+# Vuelta 3: CI
+
+**Síntoma (PR #3, GitHub Actions `ubuntu-latest`):** `ProviderClientConfigurationTest.appliesConfiguredBaseUrlAndReadTimeout` falló con `assertThat(PROVIDER.getAllServeEvents()).hasSize(1)` → `Expected size: 1 but was: 0`. Localmente pasaba.
+
+**Causa:** el test era sensible a la temporización por dos motivos. Cualquiera de los dos deja el journal de WireMock vacío en el momento del assert:
+1. **Timeouts muy ajustados:** `connect-timeout=100ms` y `read-timeout=200ms`. El read-timeout del `JdkClientHttpRequestFactory` cubre todo el intercambio, así que en un runner lento el cliente puede abandonar (→ `Unknown(PROVIDER_TIMEOUT)`, que es correcto) antes de que WireMock registre la petición.
+2. **Assert inmediato sobre el journal:** con `withFixedDelay`, WireMock puede registrar el serve event cuando termina el delay, y el assert corría justo después del timeout del cliente.
+
+**Cambio (solo tests, sin tocar producción):**
+
+| Archivo | Cambio |
+|---|---|
+| `src/test/java/mx/gilortiz/transactions/provider/http/ProviderClientConfigurationTest.java` (`appliesConfiguredBaseUrlAndReadTimeout`) | Timeouts `connect-timeout=500ms` y `read-timeout=1s` (sigue muy por debajo del default de 3 s, así que demuestra que el valor configurado se aplica). Delay 2 s. "Una sola petición" se afirma de dos formas: (a) determinista, `circuitBreaker().getMetrics().getNumberOfBufferedCalls() == 1` (cada intento pasa por el circuito, así que 1 = sin reintento); (b) llegada a WireMock con espera acotada `await().atMost(10s).untilAsserted(PROVIDER.verify(1, …))` en lugar del `hasSize(1)` inmediato. El bean se obtiene como `HttpTransactionProvider` (mismo paquete) para leer las métricas. |
+| `src/test/java/mx/gilortiz/transactions/provider/http/HttpTransactionProviderTest.java` | **Misma carrera latente** en `readTimeoutIsUnknownWithoutRetry` (`PROVIDER.verify(1, …)` inmediato tras el timeout, con `read 300ms`/`connect 200ms`). Arreglado igual: métrica del circuito (`getNumberOfBufferedCalls() == 1`) + helper `awaitProviderRequests(1)` con Awaitility (máx. 10 s). Además los timeouts compartidos de la clase pasan a `CONNECT_TIMEOUT = 500ms`, `READ_TIMEOUT = 1s` y `SLOW_RESPONSE_DELAY_MILLIS = 2 × READ_TIMEOUT`, para que ningún test sin delay pueda dar timeout en un runner lento. |
+
+**Otros tests del paquete revisados:**
+- `readTimeoutsOpenCircuit` solo afirma el estado del circuito, que se fija en `execute`. No consulta el journal: sin carrera.
+- Los `verify(…)` de respuestas sin delay (200, 4xx, 5xx, 504, reset) no tienen carrera: WireMock termina de responder antes de que el cliente devuelva el resultado.
+- `openCircuitDoesNotCallProvider` hace `verify(0)`, que no puede dar un falso positivo por llegar tarde.
+- `ProviderPropertiesTest` no usa red.
+
+**Dependencias:** ninguna nueva. `org.awaitility:awaitility` (4.3.0) ya llega en scope test por el starter de test de Boot.
+
+**Verificación:**
+- Los dos tests afectados, 3 corridas seguidas → `OK` las 3.
+- `./mvnw test -Dtest='HttpTransactionProviderTest,ProviderClientConfigurationTest'` → `Tests run: 34, Failures: 0` / `BUILD SUCCESS`.
+- `./.harness/init.sh` → `EXIT=0`, `verify verde (unitarios + integración + ArchUnit)`; 89 unitarios + 3 IT.
+- Costo: `HttpTransactionProviderTest` pasa de unos 3,3 s a unos 5,5 s y `ProviderClientConfigurationTest` de unos 1,2 s a unos 2 s, por los timeouts más holgados.
+
+**Pendiente de confirmar:** no reproduje el runner de CI localmente. Lo que confirma el arreglo es la corrida del PR.
