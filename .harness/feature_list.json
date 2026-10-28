@@ -117,7 +117,7 @@
         "/v3/api-docs y /swagger-ui.html disponibles",
         "Tests @WebMvcTest de cada código HTTP"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": 6,
