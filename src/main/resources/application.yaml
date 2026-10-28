@@ -13,3 +13,20 @@ spring:
     hibernate.ddl-auto: validate
     properties.hibernate.jdbc.time_zone: UTC
 management.endpoints.web.exposure.include: health,info
+provider:
+  base-url: ${PROVIDER_BASE_URL:http://localhost:8089}
+  connect-timeout: ${PROVIDER_CONNECT_TIMEOUT:1s}
+  # Excedido → resultado UNKNOWN; nunca se reintenta (la operación pudo aplicarse).
+  read-timeout: ${PROVIDER_READ_TIMEOUT:3s}
+  retry:
+    # Incluye el primer intento. Solo se reintenta cuando la petición no llegó (error de conexión).
+    max-attempts: ${PROVIDER_RETRY_MAX_ATTEMPTS:3}
+    # Backoff exponencial con jitter: 200ms, ~400ms… (±50 %).
+    wait-duration: ${PROVIDER_RETRY_WAIT:200ms}
+    backoff-multiplier: ${PROVIDER_RETRY_BACKOFF_MULTIPLIER:2}
+    randomization-factor: ${PROVIDER_RETRY_RANDOMIZATION:0.5}
+  circuit-breaker:
+    failure-rate-threshold: ${PROVIDER_CB_FAILURE_RATE:50}
+    sliding-window-size: ${PROVIDER_CB_WINDOW:20}
+    minimum-number-of-calls: ${PROVIDER_CB_MIN_CALLS:10}
+    wait-duration-in-open-state: ${PROVIDER_CB_OPEN_WAIT:30s}
