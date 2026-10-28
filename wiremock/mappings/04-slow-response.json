@@ -1,0 +1,22 @@
+{
+  "name": "Respuesta lenta: 5 s, más que el read-timeout de 3 s (accountId acc-slow)",
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "url": "/provider/v1/execute",
+    "bodyPatterns": [
+      { "matchesJsonPath": { "expression": "$.accountId", "equalTo": "acc-slow" } }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "fixedDelayMilliseconds": 5000,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": {
+      "transactionId": "txn-slow",
+      "status": "APPROVED",
+      "balance": 5500.00,
+      "executedAt": "2025-03-15T10:30:00Z"
+    }
+  }
+}
