@@ -96,7 +96,7 @@
         "Violación del UNIQUE en carrera → devuelve la transacción ganadora",
         "Tests unitarios del servicio con mock del puerto y de la entidad"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": 5,
