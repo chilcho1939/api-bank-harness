@@ -42,3 +42,11 @@
 - `GET /transactions`: filtros `accountId`/`status`/`type`, `page` base 0, `limit` 1–100 (default 20), orden `createdAt desc, id desc`, paginación en BD; forma `content/page/limit/totalElements/totalPages`.
 - OpenAPI con respuestas documentadas (springdoc) fijadas por `OpenApiIT`; GET `produces=application/json`.
 - Review CHANGES_REQUESTED (E7 OpenAPI) → vuelta 2 → APPROVED 26/26. Para f7: README con `count(*)` por página y paginación keyset como mejora.
+
+## 2026-10-28 — feature 6 integration
+
+- `TransactionFlowIT` (18) + `TransactionTimeoutIT` (1): HTTP real (RANDOM_PORT + RestClient) → reglas → WireMock → Postgres Testcontainers, sin mocks internos. Aserciones sobre BD y WireMock, no solo respuestas.
+- Concurrencia: 10 requests con la misma llave → un 201, nueve 200 con el mismo id, 1 fila, 1 llamada al proveedor. Pool Hikari de 2: 10 requests dentro del proveedor a la vez con 0 conexiones activas (falla si se agrega `@Transactional`, verificado por mutación).
+- Determinismo: gate en WireMock + Awaitility, sin sleeps; timeout en IT propio (read-timeout 1s), flujo con 10s; orden esperado tomado de Postgres.
+- Infra de tests: un solo Postgres compartido (`JdbcConnectionDetails`, arranque perezoso), `DatabaseCleaner` común, helpers `ProviderGate`/`ProviderStubs`/`TransactionApi`. `src/main` sin cambios.
+- Review APPROVED → `/code-review` (9 hallazgos: 7 corregidos, 2 aceptados) → APPROVED vuelta 2.

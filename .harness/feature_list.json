@@ -139,7 +139,7 @@
         "*IT: N requests concurrentes con la misma llave → una sola fila y una sola llamada al proveedor",
         "*IT: consulta con filtros y paginación"
       ],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": 7,
